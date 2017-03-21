@@ -2,7 +2,7 @@
 #include "utils.cuh"
 #include "device_context.cuh"
 #include "cusolverDn.h"
-#include <algorithm>
+#include <cub/cub.cuh>
 
 namespace scl
 {
@@ -18,21 +18,58 @@ namespace scl
 	template <typename T>
 	class Matrix
 	{
-		int _n;
 		int _m;
+		int _n;
 
 		T* _data;
 
 	public:
-		Matrix(int n, int m) : _n(n), _m(m)
+
+		/**
+		 * \fn	Matrix()
+		 *
+		 * \brief	Default constructor.
+		 *
+		 * \author	Rory
+		 * \date	3/15/2017
+		 */
+
+		Matrix() : _m(0), _n(0), _data(nullptr)
+		{
+		}
+
+		/**
+		 * \fn	Matrix(int m, int n)
+		 *
+		 * \brief	Constructor. Initialize matrix with m rows and n columns in device memory.
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \param	m	Matrix rows.
+		 * \param	n	Matrix columns.
+		 */
+
+		Matrix(int m, int n) : _m(m), _n(n)
 		{
 			safe_cuda(cudaMalloc(&_data, _n*_m* sizeof(T)));
 		}
 
+		/**
+		 * \fn	Matrix(const Matrix<T>& M)
+		 *
+		 * \brief	Constructor. Initialise matrix by copying existing matrix.
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \param	M	The Matrix&lt;T&gt; to copy.
+		 */
+
 		Matrix(const Matrix<T>& M) : _n(M.columns()), _m(M.rows())
 		{
 			safe_cuda(cudaMalloc(&_data, _n*_m* sizeof(T)));
-			safe_cuda(cudaMemcpy(_data, M.data(),_n*_m* sizeof(T), cudaMemcpyDeviceToDevice));
+			this->copy(M);
 		}
 
 		~Matrix()
@@ -40,35 +77,174 @@ namespace scl
 			safe_cuda(cudaFree(_data));
 		}
 
+		/**
+		 * \fn	void resize(int m, int n)
+		 *
+		 * \brief	Resizes.
+		 *
+		 * \author	Rory
+		 * \date	3/15/2017
+		 *
+		 * \param	m	Matrix rows.
+		 * \param	n	Matrix columns.
+		 */
+
+		void resize(int m, int n)
+		{
+			_m = m;
+			_n = n;
+			if (_data != nullptr)
+			{
+				safe_cuda(cudaFree(_data));
+			}
+			safe_cuda(cudaMalloc(&_data, _n*_m* sizeof(T)));
+		}
+
+		/**
+		 * \fn	T* data()
+		 *
+		 * \brief Return raw pointer to data. Data is allocated on device.	
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return	Raw pointer to Matrix data.
+		 */
+
 		T* data()
 		{
 			return _data;
 		}
 
+		/**
+		 * \fn	T* data()
+		 *
+		 * \brief Return const raw pointer to data. Data is allocated on device.	
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return	Raw pointer to Matrix data.
+		 */
 		const T* data() const
 		{
 			return _data;
 		}
+
+		/**
+		 * \fn	thrust::device_ptr<T> dptr()
+		 *
+		 * \brief	Get thrust device pointer to matrix data. Useful for invoking thrust functions.
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return	A thrust::device_ptr&lt;T&gt;
+		 */
+
+		thrust::device_ptr<T> dptr()
+		{
+			return thrust::device_pointer_cast(_data);
+		}
+
+		/**
+		 * \fn	thrust::device_ptr<T> dptr()
+		 *
+		 * \brief	Get const thrust device pointer to matrix data. Useful for invoking thrust functions.
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return	A thrust::device_ptr&lt;T&gt;
+		 */
+
+		thrust::device_ptr<const T> dptr() const
+		{
+			return thrust::device_pointer_cast(_data);
+		}
+
+		/**
+		 * \fn	int rows() const
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return	Number of matrix rows.	
+		 */
 
 		int rows() const
 		{
 			return _m;
 		}
 
+		/**
+		 * \fn	int columns() const
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return	Number of matrix columns.
+		 */
+
 		int columns() const
 		{
 			return _n;
 		}
+
+		/**
+		 * \fn	int size() const
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \return Number of matrix elements (m*n).	
+		 */
 
 		int size() const
 		{
 			return _n * _m;
 		}
 
+		/**
+		 * \fn	void zero()
+		 *
+		 * \brief	Zeroes matrix elements. 
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 */
+
 		void zero()
 		{
 			thrust::fill(thrust::device_ptr<T>(_data), thrust::device_ptr<T>(_data) + _n * _m, 0);
 		}
+
+		/**
+		 * \fn	void fill(T val)
+		 *
+		 * \brief	Fills matrix with given value.
+		 *
+		 * \author	Rory
+		 * \date	3/15/2017
+		 *
+		 * \param	val	The value.
+		 */
+
+		void fill(T val)
+		{
+			thrust::fill(thrust::device_ptr<T>(_data), thrust::device_ptr<T>(_data) + _n * _m, val);
+		}
+
+		/**
+		 * \fn	void random(int random_seed = 0)
+		 *
+		 * \brief	Fills matrix elements with uniformly distributed numbers between 0-1.0
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \param	random_seed	(Optional) The random seed.
+		 */
 
 		void random(int random_seed = 0)
 		{
@@ -85,53 +261,39 @@ namespace scl
 			);
 		}
 
+		/**
+		 * \fn	void copy(const T*hptr)
+		 *
+		 * \brief	Copies from host pointer to matrix. Assumes host pointer contains array of same size as matrix.
+		 *
+		 * \author	Rory
+		 * \date	2/27/2017
+		 *
+		 * \param	hptr	Host pointer.
+		 */
 
-		void normalize_columns()
+		void copy(const T* hptr)
 		{
-			//Create alias so device Lamba does not dereference this pointer
-			int m = _m;
-
-			thrust::device_vector<T> temp(_n * _m);
-			thrust::device_vector<T> length_squared(_n);
-
-			auto d_data = thrust::device_ptr<T>(_data);
-			thrust::transform(d_data, d_data + _n * _m, temp.begin(), [=]__device__(T val)
-			                  {
-				                  return val * val;
-			                  });
-
-
-			thrust::device_vector<int> column_segments(_n + 1);
-			auto counting = thrust::make_counting_iterator(0);
-			thrust::transform(counting, counting + column_segments.size(), column_segments.begin(), [=]__device__(int idx)
-			                  {
-				                  return idx * m;
-			                  });
-
-			// Determine temporary device storage requirements
-			void* d_temp_storage = NULL;
-			size_t temp_storage_bytes = 0;
-			auto segments = thrust::raw_pointer_cast(column_segments.data());
-			auto sum_in = thrust::raw_pointer_cast(temp.data());
-			auto sum_out = thrust::raw_pointer_cast(length_squared.data());
-			cub::DeviceSegmentedReduce::Sum(d_temp_storage, temp_storage_bytes, sum_in, sum_out,
-			                                _n, segments, segments + 1);
-			// Allocate temporary storage
-			cudaMalloc(&d_temp_storage, temp_storage_bytes);
-			cub::DeviceSegmentedReduce::Sum(d_temp_storage, temp_storage_bytes, sum_in, sum_out,
-			                                _n, segments, segments + 1);
-
-			//Scale
-			auto d_length_squared = thrust::raw_pointer_cast(length_squared.data());
-			thrust::transform(counting, counting + _n * _m, d_data, [=]__device__(int idx)
-			                  {
-				                  int col = idx / m;
-
-				                  return d_data[idx] / std::sqrt(d_length_squared[col]);
-			                  });
-
-			cudaFree(d_temp_storage);
+			thrust::copy(hptr, hptr + this->size(), this->dptr());
 		}
+
+		/**
+		 * \fn	void copy(const Matrix<T>& M)
+		 *
+		 * \brief	Copies the given M.
+		 *
+		 * \author	Rory
+		 * \date	3/6/2017
+		 *
+		 * \param	M	The Matrix&lt;T&gt; to process.
+		 */
+
+		void copy(const Matrix<T>& M)
+		{
+			scl_check(M.rows() == this->rows()&&M.columns() == this->columns(), "Cannot copy matrix. Dimensions are different.");
+			thrust::copy(M.dptr(), M.dptr() + M.size(), this->dptr());
+		}
+
 
 		void print() const
 		{
@@ -148,32 +310,38 @@ namespace scl
 	};
 
 	/**
-	 * \fn	void matrix_mul(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false)
+	 * \fn	void multiply(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false, float alpha=1.0f);
 	 *
-	 * \brief	Matrix multiplication. AB = C. A or B may be transposed.
+	 * \brief	Matrix multiplication. ABa = C. A or B may be transposed. a is a scalar.
 	 *
 	 * \author	Rory
 	 * \date	2/21/2017
 	 *
+	 * \param 		  	A		   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	B		   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	C		   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	context	   	The context.
+	 * \param 		  	transpose_a	(Optional) True to transpose a.
+	 * \param 		  	transpose_b	(Optional) True to transpose b.
+	 * \param 		  	alpha	   	(Optional) The alpha.
 	 */
 
-	void matrix_mul(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false)
-	{
-		cublasOperation_t op_a = transpose_a ? CUBLAS_OP_T : CUBLAS_OP_N;
-		cublasOperation_t op_b = transpose_b ? CUBLAS_OP_T : CUBLAS_OP_N;
+	void multiply(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false, float alpha=1.0f);
 
-		const float alpha = 1;
-		const float beta = 0;
+	/**
+	 * \fn	void multiply(Matrix<float>& A, const float a ,DeviceContext& context);
+	 *
+	 * \brief	Matrix scalar multiplication.
+	 *
+	 * \author	Rory
+	 * \date	3/6/2017
+	 *
+	 * \param [in,out]	A	   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	a	   	The scalar.
+	 * \param [in,out]	context	The context.
+	 */
 
-		int m = C.rows();
-		int n = C.columns();
-		int k = transpose_a ? A.rows() : A.columns();
-		int lda = transpose_a ? k : m;
-		int ldb = transpose_b ? n : k;
-		int ldc = m;
-
-		safe_cublas(cublasSgemm(context.cublas_handle, op_a, op_b, m, n, k, &alpha, A.data(), lda, B.data(), ldb, &beta, C.data(), ldc));
-	}
+	void multiply(Matrix<float>& A, const float a, DeviceContext& context);
 
 	/**
 	 * \fn	void matrix_sub(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context)
@@ -181,46 +349,105 @@ namespace scl
 	 * \brief	Matrix subtraction. A - B = C.
 	 *
 	 * \author	Rory
-	 * \date	2/21/2017
+	 ned* \date	2/21/2017
 	 *
 	 */
 
-	void matrix_sub(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context)
-	{
-		auto counting = thrust::make_counting_iterator(0);
-		const float* d_A = A.data();
-		const float* d_B = B.data();
-		float* d_C = C.data();
-		thrust::for_each(counting, counting + A.rows() * A.columns(), [=]__device__(int idx)
-		                 {
-			                 d_C[idx] = d_A[idx] - d_B[idx];
-		                 });
-	}
+	void subtract(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context);
 
-	//https://stackoverflow.com/questions/28794010/solving-linear-systems-ax-b-with-cuda
-	//void linear_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, DeviceContext& context)
-	//{
-	//	Matrix<float> A_copy(A);
-	//	scl_check(A.rows()>= A.columns(),"Linear solve requires m >= n");
-	//	int work_size = 0;
-	//	safe_cusolver(cusolverDnSgeqrf_bufferSize(context.cusolver_handle, A_copy.rows(), A_copy.columns(), A_copy.data(), A_copy.rows(), &work_size));
+	/**
+	 * \fn	void add(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context);
+	 *
+	 * \brief	Matrix addition. A + B = C	
+	 *
+	 * \author	Rory
+	 * \date	3/6/2017
+	 *
+	 * \param 		  	A	   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	B	   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	C	   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	context	The context.
+	 */
 
-	//	thrust::device_vector<float> work(work_size);
-	//	float *d_work = thrust::raw_pointer_cast(work.data());
+	void add(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context);
+	/**
+	 * \fn	void transpose(const Matrix<float >&A, Matrix<float >&B, DeviceContext& context)
+	 *
+	 * \brief	Transposes matrix A into matrix B.
+	 *
+	 * \author	Rory
+	 * \date	2/27/2017
+	 *
+	 * \param 		  	A	   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	B	   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	context	The context.
+	 */
 
-	//	thrust::device_vector<float > tau((std::min)(A.rows(), A.columns()));
-	//	float *d_tau = thrust::raw_pointer_cast(tau.data());
+	void transpose(const Matrix<float>& A, Matrix<float>& B, DeviceContext& context);
 
-	//	thrust::device_vector<int> dev_info(1);
-	//	int *d_dev_info = thrust::raw_pointer_cast(dev_info.data());
+	/**
+	 * \fn	void linear_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, DeviceContext& context)
+	 *
+	 * \brief	Solve linear system AX=B to find B.
+	 *
+	 * \author	Rory
+	 * \date	2/26/2017
+	 *
+	 * \param 		  	A	   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	X	   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	B	   	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	context	The context.
+	 */
 
-	//	safe_cusolver(cusolverDnSgeqrf(context.cusolver_handle, A_copy.rows(), A_copy.columns(), A_copy.data(), A_copy.rows(), d_tau, d_work, work_size, d_dev_info));
+	void linear_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, DeviceContext& context);
 
-	//	scl_check(dev_info[0] == 0, "geqrf unsuccessful");
-	//}
+	/**
+	 * \fn	void pseudoinverse(const Matrix<float>& A, Matrix<float>& pinvA, DeviceContext& context)
+	 *
+	 * \brief	Calculate Moore-Penrose seudoinverse using the singular value decomposition method.
+	 *
+	 * \author	Rory
+	 * \date	2/26/2017
+	 *
+	 * \param 		  	A	   	Input matrix.
+	 * \param [in,out]	pinvA  	The pseudoinverse out.
+	 * \param [in,out]	context	Device context.
+	 */
 
-	void pseudoinverse(const Matrix<float>&A, Matrix<float >&pinvA)
-	{
-		
-	}
+	void pseudoinverse(const Matrix<float>& A, Matrix<float>& pinvA, DeviceContext& context);
+
+	/**
+	 * \fn	void normalize_columns(Matrix<float>& M, Matrix<float>& M_temp, Matrix<float>& column_length, Matrix<float>& ones, DeviceContext& context);
+	 *
+	 * \brief	Normalize matrix columns.
+	 *
+	 * \author	Rory
+	 * \date	3/6/2017
+	 *
+	 * \param [in,out]	M			 	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	M_temp		 	Temporary storage matrix of size >= M.
+	 * \param [in,out]	column_length	Temporary storage matrix with one element per column.
+	 * \param [in,out]	ones		 	Matrix of ones of length M.columns().
+	 * \param [in,out]	context		 	The context.
+	 */
+
+	void normalize_columns(Matrix<float>& M, Matrix<float>& M_temp, Matrix<float>& column_length, const Matrix<float>& ones, DeviceContext& context);
+
+	void f_normalize(Matrix<float>& M, DeviceContext& context);
+
+	void gradient_descent_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, Matrix<float>& R, DeviceContext& context, float eps = 0.1, float min_rmse_change = 1e-5);
+
+	void test_linear_solve();
+
+	/**
+	 * \fn	void residual(const Matrix<float >&X, const Matrix<float >&D, const Matrix<float >&S, Matrix<float >&R, DeviceContext & context);
+	 *
+	 * \brief	Calculate residual R = X - DS
+	 *
+	 * \author	Rory
+	 * \date	3/16/2017
+	 *
+	 */
+
+	void residual(const Matrix<float >&X, const Matrix<float >&D, const Matrix<float >&S, Matrix<float >&R, DeviceContext & context);
 }
