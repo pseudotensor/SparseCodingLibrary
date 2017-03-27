@@ -3,6 +3,7 @@
 #include "device_context.cuh"
 #include "cusolverDn.h"
 #include <cub/cub.cuh>
+#include "scl.h"
 
 namespace scl
 {
@@ -254,9 +255,35 @@ namespace scl
 			                  [=]__device__(int idx)
 			                  {
 				                  thrust::default_random_engine randEng(random_seed);
-				                  thrust::uniform_real_distribution<float> uniDist;
+				                  thrust::uniform_real_distribution<scl_float> uniDist;
 				                  randEng.discard(idx);
 				                  return uniDist(randEng);
+			                  }
+			);
+		}
+
+		/**
+		 * \fn	void random_normal(int random_seed = 0)
+		 *
+		 * \brief	Fill matrix with normally distributed random numbers between zero and one.
+		 *
+		 * \author	Rory
+		 * \date	3/27/2017
+		 *
+		 * \param	random_seed	(Optional) The random seed.
+		 */
+
+		void random_normal(int random_seed = 0)
+		{
+			auto counting = thrust::make_counting_iterator(0);
+			thrust::transform(counting, counting + _m * _n,
+			                  thrust::device_ptr<T>(_data),
+			                  [=]__device__(int idx)
+			                  {
+				                  thrust::default_random_engine randEng(random_seed);
+				                  thrust::normal_distribution<scl_float> dist;
+				                  randEng.discard(idx);
+				                  return dist(randEng);
 			                  }
 			);
 		}
@@ -272,7 +299,8 @@ namespace scl
 		 * \param	hptr	Host pointer.
 		 */
 
-		void copy(const T* hptr)
+		template <typename HostT>
+		void copy(const HostT* hptr)
 		{
 			thrust::copy(hptr, hptr + this->size(), this->dptr());
 		}
@@ -297,7 +325,7 @@ namespace scl
 
 		void print() const
 		{
-			thrust::host_vector<float> h_mat(thrust::device_ptr<T>(_data), thrust::device_ptr<T>(_data + _n * _m));
+			thrust::host_vector<T> h_mat(thrust::device_ptr<T>(_data), thrust::device_ptr<T>(_data + _n * _m));
 			for (int i = 0; i < _m; i++)
 			{
 				for (int j = 0; j < _n; j++)
@@ -310,7 +338,7 @@ namespace scl
 	};
 
 	/**
-	 * \fn	void multiply(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false, float alpha=1.0f);
+	 * \fn	void multiply(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false, scl_float alpha=1.0f);
 	 *
 	 * \brief	Matrix multiplication. ABa = C. A or B may be transposed. a is a scalar.
 	 *
@@ -318,7 +346,7 @@ namespace scl
 	 * \date	2/21/2017
 	 *
 	 * \param 		  	A		   	The Matrix&lt;float&gt; to process.
-	 * \param 		  	B		   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	B		   	The Matrix&lt;scl_float&gt; to process.
 	 * \param [in,out]	C		   	The Matrix&lt;float&gt; to process.
 	 * \param [in,out]	context	   	The context.
 	 * \param 		  	transpose_a	(Optional) True to transpose a.
@@ -326,10 +354,10 @@ namespace scl
 	 * \param 		  	alpha	   	(Optional) The alpha.
 	 */
 
-	void multiply(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false, float alpha=1.0f);
+	void multiply(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context, bool transpose_a = false, bool transpose_b = false, scl_float alpha = 1.0f);
 
 	/**
-	 * \fn	void multiply(Matrix<float>& A, const float a ,DeviceContext& context);
+	 * \fn	void multiply(Matrix<scl_float>& A, const scl_float a ,DeviceContext& context);
 	 *
 	 * \brief	Matrix scalar multiplication.
 	 *
@@ -341,10 +369,10 @@ namespace scl
 	 * \param [in,out]	context	The context.
 	 */
 
-	void multiply(Matrix<float>& A, const float a, DeviceContext& context);
+	void multiply(Matrix<scl_float>& A, const scl_float a, DeviceContext& context);
 
 	/**
-	 * \fn	void matrix_sub(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context)
+	 * \fn	void matrix_sub(const Matrix<scl_float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context)
 	 *
 	 * \brief	Matrix subtraction. A - B = C.
 	 *
@@ -353,56 +381,56 @@ namespace scl
 	 *
 	 */
 
-	void subtract(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context);
+	void subtract(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context);
 
 	/**
-	 * \fn	void add(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context);
+	 * \fn	void add(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context);
 	 *
 	 * \brief	Matrix addition. A + B = C	
 	 *
 	 * \author	Rory
 	 * \date	3/6/2017
 	 *
-	 * \param 		  	A	   	The Matrix&lt;float&gt; to process.
-	 * \param 		  	B	   	The Matrix&lt;float&gt; to process.
-	 * \param [in,out]	C	   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	A	   	The Matrix&lt;scl_float&gt; to process.
+	 * \param 		  	B	   	The Matrix&lt;scl_float&gt; to process.
+	 * \param [in,out]	C	   	The Matrix&lt;scl_float&gt; to process.
 	 * \param [in,out]	context	The context.
 	 */
 
-	void add(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context);
+	void add(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context);
 	/**
-	 * \fn	void transpose(const Matrix<float >&A, Matrix<float >&B, DeviceContext& context)
+	 * \fn	void transpose(const Matrix<scl_float >&A, Matrix<scl_float >&B, DeviceContext& context)
 	 *
 	 * \brief	Transposes matrix A into matrix B.
 	 *
 	 * \author	Rory
 	 * \date	2/27/2017
 	 *
-	 * \param 		  	A	   	The Matrix&lt;float&gt; to process.
-	 * \param [in,out]	B	   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	A	   	The Matrix&lt;scl_float&gt; to process.
+	 * \param [in,out]	B	   	The Matrix&lt;scl_float&gt; to process.
 	 * \param [in,out]	context	The context.
 	 */
 
-	void transpose(const Matrix<float>& A, Matrix<float>& B, DeviceContext& context);
+	void transpose(const Matrix<scl_float>& A, Matrix<scl_float>& B, DeviceContext& context);
 
 	/**
-	 * \fn	void linear_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, DeviceContext& context)
+	 * \fn	void linear_solve(const Matrix<scl_float>& A, Matrix<scl_float>& X, const Matrix<scl_float>& B, DeviceContext& context)
 	 *
 	 * \brief	Solve linear system AX=B to find B.
 	 *
 	 * \author	Rory
 	 * \date	2/26/2017
 	 *
-	 * \param 		  	A	   	The Matrix&lt;float&gt; to process.
-	 * \param [in,out]	X	   	The Matrix&lt;float&gt; to process.
-	 * \param 		  	B	   	The Matrix&lt;float&gt; to process.
+	 * \param 		  	A	   	The Matrix&lt;scl_float&gt; to process.
+	 * \param [in,out]	X	   	The Matrix&lt;scl_float&gt; to process.
+	 * \param 		  	B	   	The Matrix&lt;scl_float&gt; to process.
 	 * \param [in,out]	context	The context.
 	 */
 
-	void linear_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, DeviceContext& context);
+	void linear_solve(const Matrix<scl_float>& A, Matrix<scl_float>& X, const Matrix<scl_float>& B, DeviceContext& context);
 
 	/**
-	 * \fn	void pseudoinverse(const Matrix<float>& A, Matrix<float>& pinvA, DeviceContext& context)
+	 * \fn	void pseudoinverse(const Matrix<scl_float>& A, Matrix<scl_float>& pinvA, DeviceContext& context)
 	 *
 	 * \brief	Calculate Moore-Penrose seudoinverse using the singular value decomposition method.
 	 *
@@ -414,33 +442,33 @@ namespace scl
 	 * \param [in,out]	context	Device context.
 	 */
 
-	void pseudoinverse(const Matrix<float>& A, Matrix<float>& pinvA, DeviceContext& context);
+	void pseudoinverse(const Matrix<scl_float>& A, Matrix<scl_float>& pinvA, DeviceContext& context);
 
 	/**
-	 * \fn	void normalize_columns(Matrix<float>& M, Matrix<float>& M_temp, Matrix<float>& column_length, Matrix<float>& ones, DeviceContext& context);
+	 * \fn	void normalize_columns(Matrix<scl_float>& M, Matrix<scl_float>& M_temp, Matrix<scl_float>& column_length, Matrix<scl_float>& ones, DeviceContext& context);
 	 *
 	 * \brief	Normalize matrix columns.
 	 *
 	 * \author	Rory
 	 * \date	3/6/2017
 	 *
-	 * \param [in,out]	M			 	The Matrix&lt;float&gt; to process.
+	 * \param [in,out]	M			 	The Matrix&lt;scl_float&gt; to process.
 	 * \param [in,out]	M_temp		 	Temporary storage matrix of size >= M.
 	 * \param [in,out]	column_length	Temporary storage matrix with one element per column.
 	 * \param [in,out]	ones		 	Matrix of ones of length M.columns().
 	 * \param [in,out]	context		 	The context.
 	 */
 
-	void normalize_columns(Matrix<float>& M, Matrix<float>& M_temp, Matrix<float>& column_length, const Matrix<float>& ones, DeviceContext& context);
+	void normalize_columns(Matrix<scl_float>& M, Matrix<scl_float>& M_temp, Matrix<scl_float>& column_length, const Matrix<scl_float>& ones, DeviceContext& context);
 
-	void f_normalize(Matrix<float>& M, DeviceContext& context);
+	void f_normalize(Matrix<scl_float>& M, DeviceContext& context);
 
-	void gradient_descent_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, Matrix<float>& R, DeviceContext& context, float eps = 0.1, float min_rmse_change = 1e-5);
+	void gradient_descent_solve(const Matrix<scl_float>& A, Matrix<scl_float>& X, const Matrix<scl_float>& B, Matrix<scl_float>& R, DeviceContext& context, scl_float eps = 0.1, scl_float min_rmse_change = 1e-5);
 
 	void test_linear_solve();
 
 	/**
-	 * \fn	void residual(const Matrix<float >&X, const Matrix<float >&D, const Matrix<float >&S, Matrix<float >&R, DeviceContext & context);
+	 * \fn	void residual(const Matrix<scl_float >&X, const Matrix<scl_float >&D, const Matrix<scl_float >&S, Matrix<scl_float >&R, DeviceContext & context);
 	 *
 	 * \brief	Calculate residual R = X - DS
 	 *
@@ -449,5 +477,5 @@ namespace scl
 	 *
 	 */
 
-	void residual(const Matrix<float >&X, const Matrix<float >&D, const Matrix<float >&S, Matrix<float >&R, DeviceContext & context);
+	void residual(const Matrix<scl_float>& X, const Matrix<scl_float>& D, const Matrix<scl_float>& S, Matrix<scl_float>& R, DeviceContext& context);
 }

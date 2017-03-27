@@ -7,22 +7,22 @@
 namespace scl
 {
 
-	float pyksvd_metric(const Matrix<float>& R)
+	scl_float pyksvd_metric(const Matrix<scl_float>& R)
 	{
 		auto dptr = thrust::device_pointer_cast(R.data());
 
-		float sum_square = thrust::transform_reduce(dptr, dptr + R.size(), sqr_op(),
-		                                            0.0f, thrust::plus<float>());
-		float f_norm = std::sqrt(sum_square);
+		scl_float sum_square = thrust::transform_reduce(dptr, dptr + R.size(), sqr_op(),
+		                                            0.0, thrust::plus<scl_float>());
+		scl_float f_norm = std::sqrt(sum_square);
 		return f_norm / R.columns();
 	}
 
-	float rmse_metric(const Matrix<float>& R)
+	scl_float rmse_metric(const Matrix<scl_float>& R)
 	{
 		auto dptr = thrust::device_pointer_cast(R.data());
 
-		float MSE = thrust::transform_reduce(dptr, dptr + R.size(), sqr_op(),
-		                                     0.0f, thrust::plus<float>()) / R.size();
+		scl_float MSE = thrust::transform_reduce(dptr, dptr + R.size(), sqr_op(),
+		                                     0.0, thrust::plus<scl_float>()) / R.size();
 		return std::sqrt(MSE);
 	}
 }

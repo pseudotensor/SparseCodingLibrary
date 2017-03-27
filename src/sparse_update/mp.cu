@@ -4,7 +4,7 @@
 
 namespace scl
 {
-	void mp_update_S(Matrix<float>& S, const thrust::device_vector<cub::KeyValuePair<int, float>>& columns_argmax)
+	void mp_update_S(Matrix<scl_float>& S, const thrust::device_vector<cub::KeyValuePair<int, scl_float>>& columns_argmax)
 	{
 		auto counting = thrust::make_counting_iterator(0);
 		auto d_S = thrust::raw_pointer_cast(S.data());
@@ -17,7 +17,7 @@ namespace scl
 		                 });
 	}
 	
-	void copy_argmax(const thrust::device_vector<cub::KeyValuePair<int, float>>& columns_argmax, thrust::device_vector<int>& idx, thrust::device_vector<float>& val)
+	void copy_argmax(const thrust::device_vector<cub::KeyValuePair<int, scl_float>>& columns_argmax, thrust::device_vector<int>& idx, thrust::device_vector<scl_float>& val)
 	{
 		auto d_idx = thrust::raw_pointer_cast(idx.data());
 		auto d_val = thrust::raw_pointer_cast(val.data());
@@ -31,11 +31,11 @@ namespace scl
 		                 });
 	}
 
-	void mp_argmax_columns(const Matrix<float>& M, thrust::device_vector<int>& column_segments, thrust::device_vector<cub::KeyValuePair<int, float>>& argmax_result, DeviceContext& context)
+	void mp_argmax_columns(const Matrix<scl_float>& M, thrust::device_vector<int>& column_segments, thrust::device_vector<cub::KeyValuePair<int, scl_float>>& argmax_result, DeviceContext& context)
 	{
-		typedef cub::ArgIndexInputIterator<const float*, int, float> IterT;
+		typedef cub::ArgIndexInputIterator<const scl_float*, int, scl_float> IterT;
 		IterT d_indexed_in(M.data());
-		cub::KeyValuePair<int, float> initial_value(1, 0);
+		cub::KeyValuePair<int, scl_float> initial_value(1, 0);
 
 		// Determine temporary device storage requirements
 		void* d_temp_storage = NULL;
@@ -51,7 +51,7 @@ namespace scl
 		                                   M.columns(), d_segments, d_segments + 1, AbsArgMaxOp(), initial_value);
 	}
 
-	void MatchingPursuit::init(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context)
+	void MatchingPursuit::init(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context)
 	{
 		idx.resize(param.X_n);
 		val.resize(param.X_n);
@@ -64,11 +64,11 @@ namespace scl
 		generate_column_segments(column_segments, dot_result.rows());
 	}
 
-	void MatchingPursuit::sparse_update_residuals(const Matrix<float>& D, thrust::device_vector<cub::KeyValuePair<int, float>>& columns_argmax, Matrix<float>& R, DeviceContext& context, params param)
+	void MatchingPursuit::sparse_update_residuals(const Matrix<scl_float>& D, thrust::device_vector<cub::KeyValuePair<int, scl_float>>& columns_argmax, Matrix<scl_float>& R, DeviceContext& context, params param)
 	{
 		cusparseMatDescr_t descr = 0;
-		const float alpha = 1.0f;
-		const float beta = 0.0f;
+		const scl_float alpha = 1.0f;
+		const scl_float beta = 0.0f;
 		auto d_idx = thrust::raw_pointer_cast(idx.data());
 		auto d_val = thrust::raw_pointer_cast(val.data());
 
@@ -80,12 +80,12 @@ namespace scl
 		cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO);
 		safe_cusparse(cusparseScsrmm2(context.cusparse_handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_TRANSPOSE, param.X_n, param.X_m, param.dict_size, param.X_n, &alpha, descr, d_val, d_col_ptr, d_idx, D.data(), param.X_m, &beta, RT.data(), param.X_n));
 
-		const float alpha2 = -1.0f;
-		const float beta2 = 1.0f;
+		const scl_float alpha2 = -1.0f;
+		const scl_float beta2 = 1.0f;
 		safe_cublas(cublasSgeam(context.cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N, R.rows(), R.columns(), &alpha2, RT.data(), RT.rows(), &beta2, R.data(), R.rows(), R.data(), R.rows()));
 	}
 
-	void MatchingPursuit::update(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context)
+	void MatchingPursuit::update(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context)
 	{
 		S.zero();
 		R.copy(X);

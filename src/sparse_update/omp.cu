@@ -4,7 +4,7 @@
 
 namespace scl
 {
-	void orth_update_S(Matrix<float>& S, Matrix<float>& dot_result)
+	void orth_update_S(Matrix<scl_float>& S, Matrix<scl_float>& dot_result)
 	{
 		auto counting = thrust::make_counting_iterator(0);
 		auto d_S = S.data();
@@ -18,25 +18,25 @@ namespace scl
 		                 });
 	}
 
-	void OMP::orthogonalize(const Matrix<float>& X, const Matrix<float>& D, Matrix<float >&S, Matrix<float>& R, Matrix<float>& dot_result, params param, DeviceContext& context, int current_sparsity, int iterations)
+	 void OMP::orthogonalize(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float >&S, Matrix<scl_float>& R, Matrix<scl_float>& S_temp, params param, DeviceContext& context, int current_sparsity, int iterations)
 	{
 		if (current_sparsity == 1)
 		{
 			return;
 		}
 
-		const float eps = 0.5;
+		scl_float eps = 0.5;
 		for (int i = 0; i < iterations; i++)
 		{
 			residual(X, D, S, R, context);
 
-			multiply(D, R, dot_result, context, true, false, eps / current_sparsity);
+			multiply(D, R, S_temp, context, true, false, eps / current_sparsity);
 
-			orth_update_S(S,dot_result);
+			orth_update_S(S,S_temp);
 		}
 	}
 
-	void OMP::init(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context)
+	void OMP::init(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context)
 	{
 		dot_result.resize(param.dict_size, param.X_n);
 		columns_argmax.resize(param.X_n);
@@ -44,7 +44,7 @@ namespace scl
 		generate_column_segments(column_segments, dot_result.rows());
 	}
 
-	void OMP::update(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context)
+	void OMP::update(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context)
 	{
 		S.zero();
 		R.copy(X);
@@ -56,7 +56,6 @@ namespace scl
 			mp_argmax_columns(dot_result, column_segments, columns_argmax, context);
 
 			mp_update_S(S, columns_argmax);
-
 			this->orthogonalize(X, D, S, R, dot_result, param, context, i + 1, orth_iterations);
 
 			residual(X, D, S, R, context);

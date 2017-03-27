@@ -8,16 +8,19 @@ import platform
 Parameters = namedtuple('Case', ['n', 'm', 'dict_size', 'target_sparsity', 'iterations', 'dict_updater'])
 
 sparse_updaters = ['mp', 'omp2', 'omp5', 'omp10']
+#sparse_updaters = ['mp', 'omp2','omp5']
 
 
 def pareto():
-    p = Parameters(1000, 200, 300, 50, 10, 'aksvd')
+    #p = Parameters(1000, 200, 300, 50, 10, 'agd')
+    p = Parameters(2000, 200, 300, 50, 10, 'gd')
+    #p = Parameters(1000, 80, 100, 20, 10, 'agd')
     labels = sparse_updaters[:]
     labels.append('ksvd')
 
     iter_times = []
     iter_accuracy = []
-    iterations = 10
+    iterations = 20
     for iter in range(0, iterations):
         times = []
         accuracy = []

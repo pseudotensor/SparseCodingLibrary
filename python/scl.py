@@ -30,16 +30,16 @@ if len(lib_path) is 0:
 
 _mod = ctypes.cdll.LoadLibrary(lib_path[0])
 _sparse_code = _mod.sparse_code
-_sparse_code.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float),ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float), 
+_sparse_code.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
         ctypes.POINTER(ctypes.c_int), params]
 
 def as_fptr(x):
-    return x.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+    return x.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
 def sparse_code(X, dict_size, target_sparsity, max_iterations, sparse_updater='mp', dict_updater='gd', metric='rmse', print_time=False):
-    X = np.asfortranarray(X, dtype=np.float32)
-    D = np.empty((X.shape[0], dict_size), dtype=np.float32, order='F')
-    S = np.empty((dict_size, X.shape[1]), dtype=np.float32, order='F')
+    X = np.asfortranarray(X, dtype=np.float64)
+    D = np.empty((X.shape[0], dict_size), dtype=np.float64, order='F')
+    S = np.empty((dict_size, X.shape[1]), dtype=np.float64, order='F')
     param = params()
     param.X_m = X.shape[0]
     param.X_n = X.shape[1]
@@ -51,7 +51,7 @@ def sparse_code(X, dict_size, target_sparsity, max_iterations, sparse_updater='m
     param.metric = metric.encode('utf-8')
     param.print_time = print_time
 
-    metrics = np.zeros(max_iterations, dtype=np.float32)
+    metrics = np.zeros(max_iterations, dtype=np.float64)
     n_metrics = ctypes.c_int()
     _sparse_code(as_fptr(X), as_fptr(D), as_fptr(S), as_fptr(metrics), ctypes.byref(n_metrics), param)
 

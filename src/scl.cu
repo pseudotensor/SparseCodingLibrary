@@ -12,7 +12,7 @@
 
 namespace scl
 {
-	float calculate_metric(const Matrix<float>& X, const Matrix<float>& D, const Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context)
+	scl_float calculate_metric(const Matrix<scl_float>& X, const Matrix<scl_float>& D, const Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context)
 	{
 		//Update residuals
 		multiply(D, S, R, context);
@@ -33,30 +33,30 @@ namespace scl
 		}
 	}
 
-	void random_D(Matrix<float>& D, Matrix<float>& D_temp, DeviceContext& context)
+	void random_D(Matrix<scl_float>& D, Matrix<scl_float>& D_temp, DeviceContext& context)
 	{
-		D.random(7);
-		Matrix<float> D_column_length(D.columns(), 1);
-		Matrix<float> D_ones(D.columns(), 1);
+		D.random_normal(7);
+		Matrix<scl_float> D_column_length(D.columns(), 1);
+		Matrix<scl_float> D_ones(D.columns(), 1);
 		D_ones.fill(1.0);
 		normalize_columns(D, D_temp, D_column_length, D_ones, context);
 	}
 
-	void sparse_code(const float* _X, float* _D, float* _S, float* _metric, int* _metric_iterations, params _param)
+	void sparse_code(const double* _X, double* _D, double* _S, double* _metric, int* _metric_iterations, params _param)
 	{
 		try
 		{
 			DeviceContext context;
 
-			Matrix<float> X(_param.X_m, _param.X_n);
+			Matrix<scl_float> X(_param.X_m, _param.X_n);
 			X.copy(_X);
 
-			Matrix<float> R(X.rows(), X.columns()); //Residuals
+			Matrix<scl_float> R(X.rows(), X.columns()); //Residuals
 
-			Matrix<float> D(_param.X_m, _param.dict_size); //Dictionary
+			Matrix<scl_float> D(_param.X_m, _param.dict_size); //Dictionary
 			random_D(D, R, context);
 
-			Matrix<float> S(_param.dict_size, _param.X_n); //Sparse coding
+			Matrix<scl_float> S(_param.dict_size, _param.X_n); //Sparse coding
 			S.zero();
 
 			DictionaryUpdater* dict_updater = DictionaryUpdater::create(_param.dict_updater);

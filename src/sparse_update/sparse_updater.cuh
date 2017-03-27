@@ -18,8 +18,8 @@ namespace scl
 		{
 		}
 
-		virtual void init(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) = 0;
-		virtual void update(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) = 0;
+		virtual void init(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) = 0;
+		virtual void update(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) = 0;
 	};
 
 	struct AbsArgMaxOp
@@ -32,10 +32,10 @@ namespace scl
 		}
 	};
 
-	inline float count_nonzero(Matrix<float>& S)
+	inline scl_float count_nonzero(Matrix<scl_float>& S)
 	{
 		//Count non-zeros
-		float count = thrust::count_if(S.dptr(), S.dptr() + S.size(), [=]__device__(float val)
+		scl_float count = thrust::count_if(S.dptr(), S.dptr() + S.size(), [=]__device__(scl_float val)
 		                               {
 			                               return val != 0.0f;
 		                               });
@@ -43,38 +43,38 @@ namespace scl
 		return count / S.columns();
 	}
 
-	void mp_argmax_columns(const Matrix<float>& M, thrust::device_vector<int>& column_segments, thrust::device_vector<cub::KeyValuePair<int, float>>& argmax_result, DeviceContext& context);
+	void mp_argmax_columns(const Matrix<scl_float>& M, thrust::device_vector<int>& column_segments, thrust::device_vector<cub::KeyValuePair<int, scl_float>>& argmax_result, DeviceContext& context);
 
-	void mp_update_S(Matrix<float>& S, const thrust::device_vector<cub::KeyValuePair<int, float>>& columns_argmax);
+	void mp_update_S(Matrix<scl_float>& S, const thrust::device_vector<cub::KeyValuePair<int, scl_float>>& columns_argmax);
 
 
 	class MatchingPursuit : public SparseUpdater
 	{
-		Matrix<float> RT;
+		Matrix<scl_float> RT;
 		thrust::device_vector<int> idx;
-		thrust::device_vector<float> val;
+		thrust::device_vector<scl_float> val;
 		thrust::device_vector<int> col_ptr;
-		Matrix<float> dot_result;
-		thrust::device_vector<cub::KeyValuePair<int, float>> columns_argmax;
+		Matrix<scl_float> dot_result;
+		thrust::device_vector<cub::KeyValuePair<int, scl_float>> columns_argmax;
 		thrust::device_vector<int> column_segments;
 
-		void init(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) override;
+		void init(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) override;
 
-		void sparse_update_residuals(const Matrix<float>& D, thrust::device_vector<cub::KeyValuePair<int, float>>& columns_argmax, Matrix<float>& R, DeviceContext& context, params param);
+		void sparse_update_residuals(const Matrix<scl_float>& D, thrust::device_vector<cub::KeyValuePair<int, scl_float>>& columns_argmax, Matrix<scl_float>& R, DeviceContext& context, params param);
 
-		void update(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) override;
+		void update(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) override;
 	};
 
 
 	class OMP : public SparseUpdater
 	{
 		int orth_iterations;
-		Matrix<float> RT;
+		Matrix<scl_float> RT;
 		thrust::device_vector<int> idx;
-		thrust::device_vector<float> val;
+		thrust::device_vector<scl_float> val;
 		thrust::device_vector<int> col_ptr;
-		Matrix<float> dot_result;
-		thrust::device_vector<cub::KeyValuePair<int, float>> columns_argmax;
+		Matrix<scl_float> dot_result;
+		thrust::device_vector<cub::KeyValuePair<int, scl_float>> columns_argmax;
 		thrust::device_vector<int> column_segments;
 
 	public:
@@ -82,21 +82,21 @@ namespace scl
 		{
 		}
 
-		void init(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) override;
+		void init(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) override;
 
-		void orthogonalize(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, Matrix<float>& dot_result, params param, DeviceContext& context, int current_sparsity, int iterations);
+		static void orthogonalize(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, Matrix<scl_float>& S_temp, params param, DeviceContext& context, int current_sparsity, int iterations);
 
-		void sparse_residuals(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& R, DeviceContext& context, params param);
+		void sparse_residuals(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& R, DeviceContext& context, params param);
 
-		void update(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) override;
+		void update(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) override;
 	};
 
-	inline void zero_values(Matrix<float>& S, params param)
+	inline void zero_values(Matrix<scl_float>& S, params param)
 	{
-		Matrix<float> S_copy(S);
-		Matrix<float> S_sorted(S.rows(), S.columns());
+		Matrix<scl_float> S_copy(S);
+		Matrix<scl_float> S_sorted(S.rows(), S.columns());
 
-		thrust::transform(S_copy.dptr(), S_copy.dptr() + S_copy.size(), S_copy.dptr(), [=]__device__(float val)
+		thrust::transform(S_copy.dptr(), S_copy.dptr() + S_copy.size(), S_copy.dptr(), [=]__device__(scl_float val)
 		                  {
 			                  return abs(val);
 		                  });
@@ -140,20 +140,20 @@ namespace scl
 
 	class IHT : public SparseUpdater
 	{
-		void init(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) override
+		void init(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) override
 		{
 		}
 
-		void update(const Matrix<float>& X, const Matrix<float>& D, Matrix<float>& S, Matrix<float>& R, params param, DeviceContext& context) override
+		void update(const Matrix<scl_float>& X, const Matrix<scl_float>& D, Matrix<scl_float>& S, Matrix<scl_float>& R, params param, DeviceContext& context) override
 		{
-			const float eps = 0.99;
-			float min_rmse_change = 0.0001;
+			const scl_float eps = 0.99;
+			scl_float min_rmse_change = 0.0001;
 			S.zero();
 			R.copy(X);
 
-			Matrix<float> dot_result(param.dict_size, param.X_n);
+			Matrix<scl_float> dot_result(param.dict_size, param.X_n);
 
-			float last_rmse = FLT_MAX;
+			scl_float last_rmse = FLT_MAX;
 			const int max_iterations = 10000;
 			for (int i = 0; i < max_iterations; i++)
 			{
@@ -171,7 +171,7 @@ namespace scl
 				multiply(D, S, R, context);
 				subtract(X, R, R, context);
 
-				float rmse = rmse_metric(R);
+				scl_float rmse = rmse_metric(R);
 				//printf("%1.8f\n", rmse);
 
 				if (rmse > last_rmse)

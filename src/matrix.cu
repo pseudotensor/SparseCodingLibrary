@@ -4,12 +4,13 @@
 
 namespace scl
 {
-	void multiply(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context, bool transpose_a, bool transpose_b, float alpha)
+
+	void multiply(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context, bool transpose_a, bool transpose_b, scl_float alpha)
 	{
 		cublasOperation_t op_a = transpose_a ? CUBLAS_OP_T : CUBLAS_OP_N;
 		cublasOperation_t op_b = transpose_b ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-		const float beta = 0;
+		const scl_float beta = 0;
 
 		int m = C.rows();
 		int n = C.columns();
@@ -21,65 +22,65 @@ namespace scl
 		safe_cublas(cublasSgemm(context.cublas_handle, op_a, op_b, m, n, k, &alpha, A.data(), lda, B.data(), ldb, &beta, C.data(), ldc));
 	}
 
-	void multiply(Matrix<float>& A, const float a, DeviceContext& context)
+	void multiply(Matrix<scl_float>& A, const scl_float a, DeviceContext& context)
 	{
-		thrust::transform(A.dptr(), A.dptr() + A.size(), A.dptr(), [=]__device__ (float val)
+		thrust::transform(A.dptr(), A.dptr() + A.size(), A.dptr(), [=]__device__ (scl_float val)
 		                  {
 			                  return val * a;
 		                  }
 		);
 	}
 
-	void subtract(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context)
+	void subtract(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context)
 	{
 		auto counting = thrust::make_counting_iterator(0);
-		const float* d_A = A.data();
-		const float* d_B = B.data();
-		float* d_C = C.data();
+		const scl_float* d_A = A.data();
+		const scl_float* d_B = B.data();
+		scl_float* d_C = C.data();
 		thrust::for_each(counting, counting + A.rows() * A.columns(), [=]__device__(int idx)
 		                 {
 			                 d_C[idx] = d_A[idx] - d_B[idx];
 		                 });
 	}
 
-	void add(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C, DeviceContext& context)
+	void add(const Matrix<scl_float>& A, const Matrix<scl_float>& B, Matrix<scl_float>& C, DeviceContext& context)
 	{
 		auto counting = thrust::make_counting_iterator(0);
-		const float* d_A = A.data();
-		const float* d_B = B.data();
-		float* d_C = C.data();
+		const scl_float* d_A = A.data();
+		const scl_float* d_B = B.data();
+		scl_float* d_C = C.data();
 		thrust::for_each(counting, counting + A.rows() * A.columns(), [=]__device__(int idx)
 		                 {
 			                 d_C[idx] = d_A[idx] + d_B[idx];
 		                 });
 	}
 
-	void transpose(const Matrix<float>& A, Matrix<float>& B, DeviceContext& context)
+	void transpose(const Matrix<scl_float>& A, Matrix<scl_float>& B, DeviceContext& context)
 	{
 		scl_check(A.rows() == B.columns()&&A.columns() == B.rows(), "Transpose dimensions incorrect");
-		const float alpha = 1.0f;
-		const float beta = 0.0f;
+		const scl_float alpha = 1.0f;
+		const scl_float beta = 0.0f;
 		safe_cublas(cublasSgeam(context.cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N, B.rows(), B.columns(), &alpha, A.data(), A.rows(), &beta, NULL, B.rows(), B.data(), B.rows()));
 	}
 
-	void linear_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, DeviceContext& context)
+	void linear_solve(const Matrix<scl_float>& A, Matrix<scl_float>& X, const Matrix<scl_float>& B, DeviceContext& context)
 	{
 		scl_check(A.rows()>= A.columns(),"Linear solve requires m >= n");
 		scl_check(X.rows()>= X.columns(),"Linear solve requires n >= k"); //TODO: is this restriction necessary?
 
-		Matrix<float> A_copy(A);
-		Matrix<float> B_copy(A.rows(), A.columns());
+		Matrix<scl_float> A_copy(A);
+		Matrix<scl_float> B_copy(A.rows(), A.columns());
 		thrust::copy(B.dptr(), B.dptr() + B.size(), B_copy.dptr());
 		thrust::fill(B_copy.dptr() + B.size(), B_copy.dptr() + B_copy.size(), 0.0f);
 
 		int work_size = 0;
 		safe_cusolver(cusolverDnSgeqrf_bufferSize(context.cusolver_handle, A_copy.rows(), A_copy.columns(), A_copy.data(), A_copy.rows(), &work_size));
 
-		thrust::device_vector<float> work(work_size);
-		float* d_work = thrust::raw_pointer_cast(work.data());
+		thrust::device_vector<scl_float> work(work_size);
+		scl_float* d_work = thrust::raw_pointer_cast(work.data());
 
-		thrust::device_vector<float> tau((std::min)(A.rows(), A.columns()));
-		float* d_tau = thrust::raw_pointer_cast(tau.data());
+		thrust::device_vector<scl_float> tau((std::min)(A.rows(), A.columns()));
+		scl_float* d_tau = thrust::raw_pointer_cast(tau.data());
 
 		thrust::device_vector<int> dev_info(1);
 		int* d_dev_info = thrust::raw_pointer_cast(dev_info.data());
@@ -91,8 +92,8 @@ namespace scl
 		safe_cusolver(cusolverDnSormqr(context.cusolver_handle, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, A.rows(), A.columns(), (std::min)(A.rows(), A.columns()), A_copy.data(), A.rows(), d_tau, B_copy.data(), A.rows(), d_work, work_size, d_dev_info));
 		scl_check(dev_info[0] == 0, "ormqr unsuccessful");
 
-		Matrix<float> R(A.columns(), A.columns());
-		Matrix<float> QTB(A.columns(), B.columns());
+		Matrix<scl_float> R(A.columns(), A.columns());
+		Matrix<scl_float> QTB(A.columns(), B.columns());
 		auto counting = thrust::make_counting_iterator(0);
 		int n = R.columns();
 		int m = A.rows();
@@ -113,18 +114,18 @@ namespace scl
 			                 }
 		                 });
 
-		const float alpha = 1.0f;
+		const scl_float alpha = 1.0f;
 		safe_cublas(cublasStrsm(context.cublas_handle, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, QTB.rows(), QTB.columns(), &alpha, R.data(), R.rows(), QTB.data(), QTB.rows()));
 
 		thrust::copy(QTB.dptr(), QTB.dptr() + QTB.size(), X.data());
 	}
 
-	void pseudoinverse(const Matrix<float>& A, Matrix<float>& pinvA, DeviceContext& context)
+	void pseudoinverse(const Matrix<scl_float>& A, Matrix<scl_float>& pinvA, DeviceContext& context)
 	{
 		scl_check(A.rows() == pinvA.columns() && A.columns() == pinvA.rows(), "pseudoinverse dimensions incorrect");
 
 		//Add zero rows if m < n such that m >= n
-		Matrix<float> A_extended((std::max)(A.columns(), A.rows()), A.columns());
+		Matrix<scl_float> A_extended((std::max)(A.columns(), A.rows()), A.columns());
 		auto counting = thrust::make_counting_iterator(0);
 		int A_column_size = A.rows();
 		int A_extended_column_size = A_extended.rows();
@@ -149,85 +150,85 @@ namespace scl
 		int work_size = 0;
 		safe_cusolver(cusolverDnSgesvd_bufferSize(context.cusolver_handle, A_extended.rows(), A_extended.columns(), &work_size));
 
-		Matrix<float> work(work_size, 1);
+		Matrix<scl_float> work(work_size, 1);
 
-		Matrix<float> S((std::min)(A_extended.rows(), A_extended.columns()), 1);
-		Matrix<float> U(A_extended.rows(), A_extended.rows());
-		Matrix<float> VT(A_extended.columns(), A_extended.columns());
+		Matrix<scl_float> S((std::min)(A_extended.rows(), A_extended.columns()), 1);
+		Matrix<scl_float> U(A_extended.rows(), A_extended.rows());
+		Matrix<scl_float> VT(A_extended.columns(), A_extended.columns());
 		Matrix<int> dev_info(1, 1);
 
 		safe_cusolver (cusolverDnSgesvd(context.cusolver_handle, 'A', 'A', A_extended.rows(), A_extended.columns(), d_A_extended, A_extended.rows(), S.data(), U.data(), U.rows(), VT.data(), VT.rows(), work.data(), work_size, NULL, dev_info.data()));
 
-		float eps = 1e-5;
-		thrust::transform(S.dptr(), S.dptr() + S.size(), S.dptr(), [=]__device__(float val)
+		scl_float eps = 1e-5;
+		thrust::transform(S.dptr(), S.dptr() + S.size(), S.dptr(), [=]__device__(scl_float val)
 		                  {
 			                  if (abs(val) < eps)
 			                  {
-				                  return 0.0f;
+				                  return 0.0;
 			                  }
 			                  else
 			                  {
-				                  return 1.0f / val;
+				                  return 1.0 / val;
 			                  }
 		                  });
 
-		Matrix<float> UT(A_extended.rows(), A_extended.rows());
+		Matrix<scl_float> UT(A_extended.rows(), A_extended.rows());
 
 		//Calculate transpose of U
-		const float alpha = 1.0f;
-		const float beta = 0.0f;
+		const scl_float alpha = 1.0;
+		const scl_float beta = 0.0;
 		safe_cublas(cublasSgeam(context.cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N, UT.rows(), UT.columns(), &alpha, U.data(), UT.rows(), &beta,NULL, UT.rows(), UT.data(), UT.rows()));
 
 		safe_cublas(cublasSdgmm(context.cublas_handle, CUBLAS_SIDE_LEFT, UT.rows(), UT.columns(), UT.data(), UT.rows(), S.data(), 1, U.data(), U.rows()));
 
-		Matrix<float> pinvA_extended(A_extended.columns(), A_extended.rows());
+		Matrix<scl_float> pinvA_extended(A_extended.columns(), A_extended.rows());
 		multiply(VT, U, pinvA_extended, context, true);
 
 		thrust::copy(pinvA_extended.dptr(), pinvA_extended.dptr() + pinvA.size(), pinvA.dptr());
 	}
 
-	void normalize_columns(Matrix<float>& M, Matrix<float>& M_temp, Matrix<float>& column_length, const Matrix<float>& ones, DeviceContext& context)
+	void normalize_columns(Matrix<scl_float>& M, Matrix<scl_float>& M_temp, Matrix<scl_float>& column_length, const Matrix<scl_float>& ones, DeviceContext& context)
 	{
 		thrust::transform(M.dptr(), M.dptr() + M.size(), M_temp.dptr(), sqr_op());
 		auto d_column_length = column_length.data();
 		auto d_ones = ones.data();
-		const float alpha = 1.0f;
-		const float beta = 0.0f;
+		const scl_float alpha = 1.0f;
+		const scl_float beta = 0.0f;
 		safe_cublas(cublasSgemv(context.cublas_handle, CUBLAS_OP_T, M.rows(), M.columns(), &alpha, M_temp.data(), M.rows(), d_ones, 1, &beta, d_column_length, 1));
 
-		thrust::transform(column_length.dptr(), column_length.dptr() + column_length.size(), column_length.dptr(), [=]__device__(float val)
+		thrust::transform(column_length.dptr(), column_length.dptr() + column_length.size(), column_length.dptr(), [=]__device__(scl_float val)
 		                  {
-							  if (val == 0.0f)
+							  if (val == 0.0)
 							  {
-								  return 0.0f;
+								  return 0.0;
 							  }
 
-			                  return 1.0f / sqrt(val);
+			                  return 1.0/ sqrt(val);
 		                  });
 
 		safe_cublas(cublasSdgmm(context.cublas_handle, CUBLAS_SIDE_RIGHT, M.rows(), M.columns(), M.data(), M.rows(), d_column_length, 1, M.data(), M.rows()));
 	}
 
-	void f_normalize(Matrix<float>& M, DeviceContext& context)
+	void f_normalize(Matrix<scl_float>& M, DeviceContext& context)
 	{
-		Matrix<float> temp(M.rows(), M.columns());
+		Matrix<scl_float> temp(M.rows(), M.columns());
 		thrust::transform(M.dptr(), M.dptr() + M.size(), temp.dptr(), sqr_op());
-		float sum = thrust::reduce(temp.dptr(), temp.dptr() + temp.size());
+		scl_float sum = thrust::reduce(temp.dptr(), temp.dptr() + temp.size());
 		multiply(M, 1.0 / std::sqrt(sum), context);
 		thrust::transform(M.dptr(), M.dptr() + M.size(), temp.dptr(), sqr_op());
-		float final_sum = thrust::reduce(temp.dptr(), temp.dptr() + temp.size());
+		scl_float final_sum = thrust::reduce(temp.dptr(), temp.dptr() + temp.size());
 		printf("f norm sum squares: %1.4f\n", final_sum);
 	}
 
-	void normalize_columns_cub(Matrix<float>& M, DeviceContext& context)
+	void normalize_columns_cub(Matrix<scl_float>& M, DeviceContext& context)
 	{
 		//Create alias so device Lamba does not dereference this pointer
 		int m = M.rows();
 
-		thrust::device_vector<float> temp(M.size());
-		thrust::device_vector<float> length_squared(M.columns());
+		thrust::device_vector<scl_float> temp(M.size());
+		thrust::device_vector<scl_float> length_squared(M.columns());
 
-		thrust::transform(M.dptr(), M.dptr() + M.size(), temp.begin(), [=]__device__(float val)
+		thrust::transform(M.dptr(), M.dptr() + M.size(), temp.begin(), [=]__device__(scl_float val)
 		                  {
 			                  return val * val;
 		                  });
@@ -260,9 +261,9 @@ namespace scl
 		                  {
 			                  int col = idx / m;
 
-			                  float length_squared = d_length_squared[col];
+			                  scl_float length_squared = d_length_squared[col];
 
-			                  if (length_squared > 0.0f)
+			                  if (length_squared > 0.0)
 			                  {
 				                  return d_data[idx] / std::sqrt(d_length_squared[col]);
 			                  }
@@ -275,22 +276,22 @@ namespace scl
 		cudaFree(d_temp_storage);
 	}
 
-	void gradient_descent_solve(const Matrix<float>& A, Matrix<float>& X, const Matrix<float>& B, Matrix<float>& R, DeviceContext& context, float eps, float min_rmse_change)
+	void gradient_descent_solve(const Matrix<scl_float>& A, Matrix<scl_float>& X, const Matrix<scl_float>& B, Matrix<scl_float>& R, DeviceContext& context, scl_float eps, scl_float min_rmse_change)
 	{
 		residual(B, A, X, R, context);
 
 		const int max_iterations = 1000;
-		float best_rmse = FLT_MAX;
+		scl_float best_rmse = FLT_MAX;
 
 		for (int i = 0; i < max_iterations; i++)
 		{
-			float alpha = eps / A.rows();
-			const float beta = 1.0f;
+			scl_float alpha = eps / A.rows();
+			const scl_float beta = 1.0f;
 			safe_cublas(cublasSgemm(context.cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N, X.rows(), X.columns(), A.rows(), &alpha, A.data(), A.rows(), R.data(), R.rows(), &beta, X.data(), X.rows()));
 			//Recalculate residual
 			residual(B, A, X, R, context);
 
-			float rmse = rmse_metric(R);
+			scl_float rmse = rmse_metric(R);
 
 			if (std::abs(best_rmse - rmse) < min_rmse_change)
 			{
@@ -317,16 +318,16 @@ namespace scl
 		int n = 5;
 		int m = 6;
 		int k = 3;
-		Matrix<float> A(m, n);
+		Matrix<scl_float> A(m, n);
 		A.random(9);
-		Matrix<float> X(n, k);
+		Matrix<scl_float> X(n, k);
 		X.random(17);
-		Matrix<float> B(m, k);
+		Matrix<scl_float> B(m, k);
 		multiply(A, X, B, context);
 
-		Matrix<float> solution(n, k);
+		Matrix<scl_float> solution(n, k);
 		//linear_solve(A, solution, B, context);
-		Matrix<float> R(B.rows(), B.columns());
+		Matrix<scl_float> R(B.rows(), B.columns());
 		gradient_descent_solve(A, solution, B, R, context);
 		printf("A\n");
 		A.print();
@@ -339,7 +340,7 @@ namespace scl
 	}
 
 
-	void residual(const Matrix<float>& X, const Matrix<float>& D, const Matrix<float>& S, Matrix<float>& R, DeviceContext& context)
+	void residual(const Matrix<scl_float>& X, const Matrix<scl_float>& D, const Matrix<scl_float>& S, Matrix<scl_float>& R, DeviceContext& context)
 	{
 		multiply(D, S, R, context);
 		subtract(X, R, R, context);

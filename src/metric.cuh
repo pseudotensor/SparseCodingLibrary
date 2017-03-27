@@ -1,10 +1,11 @@
 #pragma once
 #include "matrix.cuh"
+#include "scl.h"
 
 
 namespace scl
 {
-	float pyksvd_metric(const Matrix<float>& R);
+	scl_float pyksvd_metric(const Matrix<scl_float>& R);
 
-	float rmse_metric(const Matrix<float>& R);
+	scl_float rmse_metric(const Matrix<scl_float>& R);
 }

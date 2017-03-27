@@ -18,7 +18,7 @@ cases.append(Case(10, 5, 6, 3, 20, 'mp', 'gd'))
 cases.append(Case(1000, 30, 40, 12, 20, 'mp', 'gd'))
 cases.append(Case(500, 300, 400, 120, 20, 'mp', 'gd'))
 
-dict_updaters = [('gd', 0.5), ('aksvd', 0.2)]
+dict_updaters = [('gd', 0.5), ('aksvd', 0.2), ('agd', 0.2)]
 sparse_updaters = [('mp', 0.5), ('omp2', 0.2), ('omp5', 0.2), ('omp10', 0.2)]
 
 
